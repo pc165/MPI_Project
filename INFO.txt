@@ -1,0 +1,46 @@
+0x0000_0068 26 10 2 SPI0 Single interrupt vector for all sources
+
+
+
+
+3.10.1.1 GPIO Instantiation Information
+
+
+
+Table 4-2. Peripheral bridge 0 slot assignments (continued
+
+
+
+145
+
+
+
+
+161 tabla <-----
+
+
+
+ALT 2
+
+ports 34 - 37
+ 
+PTC4 SPI0_PCS0
+PTC5 SPI0_SCK
+PTC6 SPI0_MOSI
+PTC7 SPI0_MISO
+
+PTB2 PWM
+
+PTB18 RED
+PTB19 GREEN
+PTD01 BLUE
+
+
+
+
+
+
+
+172 SPI0 Signal Descriptions
+
+12.2.8 System Clock Gating Control Register 4 <------------ spi system clock
