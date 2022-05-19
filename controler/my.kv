@@ -1,0 +1,19 @@
+<MainWidget>:
+    cols: 2
+    rows: 2
+    Button:
+        text: 'Up'
+        #on_press: app.say_hello(app.msg)
+        on_press: app.say_hello(app.ser, 1)
+    Button:
+        text: 'Down'
+        #on_press: app.say_hello(2)
+        on_press: app.say_hello(app.ser, 2)
+    Button:
+        text: 'On'
+        #on_press: app.say_hello(3)
+        on_press: app.say_hello(app.ser, 3)
+    Button:
+        text: 'Off'
+        #on_press: app.say_hello(4)
+        on_press: app.say_hello(app.ser, 4)
