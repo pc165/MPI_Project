@@ -1,3 +1,16 @@
 {
-    "makefile.extensionOutputFolder": "./.vscode"
+    "makefile.extensionOutputFolder": "./.vscode",
+    "files.associations": {
+        "ostream": "cpp",
+        "list": "cpp",
+        "*.rmd": "markdown",
+        "*.csl": "csharp",
+        "*.csm": "csharp",
+        "*.cls": "vb",
+        "*.dsr": "vb",
+        "*.frm": "vb",
+        "*.wbt": "webots-proto",
+        "mkl25z4.h": "c",
+        "core_cm0plus.h": "c"
+    }
 }

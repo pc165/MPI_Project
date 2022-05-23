@@ -1,5 +1,4 @@
-#include "MKL25Z4.h"
-#include "math.h"
+#include "derivative.h"
 #include <stdint.h>
 
 //defines mayuscula nombres funciones y variables ingles y camel case
@@ -51,9 +50,23 @@ void initSystemClock() {
     return;
 }
 
+void UART0_IRQHandler(void) {
+    if ((UART0_BASE_PTR->S1 & UART_S1_RDRF_MASK)) {
+        char a = UART0_BASE_PTR->D;
+        if (a == 'a')
+            RED_ON;
+        UART0_BASE_PTR->S1 |= UART0_S1_PF_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_FE_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_NF_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_IDLE_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_OR_MASK;
+    }
+    return;
+}
+
 //https://learningmicro.wordpress.com/serial-communication-interface-using-uart/
 void initUart() {
-    SIM_BASE_PTR->SCGC5 |= SIM_SCGC5_PORTA(1);
+    SIM_BASE_PTR->SCGC5 |= SIM_SCGC5_PORTA_MASK;
 
     PORTA_PCR1 |= PORT_PCR_MUX(2); /* PTA1 as ALT2 (UART0) */
     PORTA_PCR2 |= PORT_PCR_MUX(2); /* PTA2 as ALT2 (UART0) */
@@ -61,7 +74,7 @@ void initUart() {
     SIM_BASE_PTR->SOPT2 |= SIM_SOPT2_UART0SRC(1);
 
     // Enable UART0 Clock
-    SIM_BASE_PTR->SCGC4 |= SIM_SCGC4_UART0(1);
+    SIM_BASE_PTR->SCGC4 |= SIM_SCGC4_UART0_MASK;
 
     //Baud Rate = Baud Clock / ((OSR+1) * BR)
     //9600 = 48000000 / ((15 + 1) * BR).
@@ -76,50 +89,20 @@ void initUart() {
     UART0_BASE_PTR->C1 = 0x00;
 
     // Configure Tx/Rx Interrupts
-    UART0_BASE_PTR->C2 |= UART_C2_TIE(0);  // Tx Interrupt disabled
-    UART0_BASE_PTR->C2 |= UART_C2_TCIE(0); // Tx Complete Interrupt disabled
-    UART0_BASE_PTR->C2 |= UART_C2_RIE(1);  // Rx Interrupt enabled
+    UART0_BASE_PTR->C2 |= ~UART0_C2_TIE_MASK;  // Tx Interrupt disabled
+    UART0_BASE_PTR->C2 |= ~UART0_C2_TCIE_MASK; // Tx Complete Interrupt disabled
+    UART0_BASE_PTR->C2 |= UART0_C2_RE_MASK;    // Rx Interrupt enabled
 
     // Configure Transmitter/Receiever
-    UART0_BASE_PTR->C2 |= UART_C2_TE(1); // Tx Enabled
-    UART0_BASE_PTR->C2 |= UART_C2_RE(1); // Rx Enabled
+    UART0_BASE_PTR->C2 |= UART0_C2_TE_MASK; // Tx Enabled
+    UART0_BASE_PTR->C2 |= UART_C2_RE_MASK;  // Rx Enabled
 
-    // Enable UART0_BASE_PTR Interrupt
-    __NVIC_EnableIRQ(UART0_IRQn);
+    // // Enable UART0_BASE_PTR Interrupt
 }
 
-void initSpi() {
-
-    // Init SPI
-    SIM_BASE_PTR->SCGC4 = SIM_SCGC4_SPI0_MASK; // Enable SPI0 clock
-
-    SPI0_BASE_PTR->C1 = SPI_C1_SPE_MASK;  // enable, SPI System Enable, SPE
-    SPI0_BASE_PTR->C1 = SPI_C1_MSTR_MASK; // use SPI as master, Master Slave select, MSTR
-    SPI0_BASE_PTR->C1 = SPI_C1_CPHA_MASK; // clock phase at the start, CPHA
-
-    SPI0_BASE_PTR->C2 = SPI_C2_SPMIE_MASK; // enable interrupt, SPMIE
-
-    SPI0_BASE_PTR->BR = SPI_BR_SPPR(0); // select BR prescaler divisor to 1, SPPR
-    SPI0_BASE_PTR->BR = SPI_BR_SPR(0);  // select BR divisor to 1, SPR
-
-    // INIT SYSYEM CLOCK for port C
-    SIM_SCGC5 |= SIM_SCGC5_PORTC_MASK;
-
-    // Configure port to alternative 2 (SPI mode)
-    PORTB_PCR4 |= PORT_PCR_MUX(2); // SPI0_PCS0
-    PORTB_PCR5 |= PORT_PCR_MUX(2); // SPI0_SCK
-    PORTB_PCR6 |= PORT_PCR_MUX(2); // SPI0_MOSI
-    PORTB_PCR7 |= PORT_PCR_MUX(2); // SPI0_MISO
-
-    return;
-}
-
-uint8_t isSpiDataFull() {
-    return SPI0_BASE_PTR->S & SPI_S_SPRF_MASK; // data available in buffer
-}
-
-uint8_t readSpiBuffer() {
-    return SPI0_BASE_PTR->D; // read Spi Data register
+void setINT() {
+    NVIC_BASE_PTR->ICPR = 1 << 12; // CLEAR INT
+    NVIC_BASE_PTR->ISER = 1 << 12; // SET INT
 }
 
 void cambioPotencia(int potencia) {
@@ -210,15 +193,10 @@ void ventilador() {
 
 int main() {
     initSystemClock();
-    initSpi();
+    initUart();
     initLeds();
+    GREEN_ON;
+    setINT();
     while (1) {
-        GREEN_ON;
-        if (isSpiDataFull()) {
-            int data = readSpiBuffer();
-            if (data == 1) {
-                RED_ON;
-            }
-        }
     }
 }
