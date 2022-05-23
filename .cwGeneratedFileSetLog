@@ -1,4 +1,4 @@
-Sources/main.cpp
+Sources/main.c
 Project_Settings/Linker_Files/MKL25Z128_flash.ld
 Project_Settings/Debugger/MKL25Z128.mem
 Project_Settings/Startup_Code/kinetis_sysinit.h
