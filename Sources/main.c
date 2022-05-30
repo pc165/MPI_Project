@@ -1,5 +1,4 @@
-#include "MKL25Z4.h"
-#include "math.h"
+#include "derivative.h"
 #include <stdint.h>
 
 //defines mayuscula nombres funciones y variables ingles y camel case
@@ -12,20 +11,26 @@
 #define BLUE_ON GPIOD_PDOR &= ~((uint32_t)(1 << 1))
 #define BLUE_OFF GPIOD_PDOR |= ((uint32_t)(1 << 1))
 
+//input from the comand
+int input;
+
+//power parameter
+int power = 0;
+
 void initPwm() {
     SIM_BASE_PTR->SCGC6 |= SIM_SCGC6_TPM2_MASK; // ENABLE TPM2 CLOCK GATE
-    SIM_BASE_PTR->SOPT2 |= SIM_SOPT2_TPMSRC(3);
+    SIM_BASE_PTR->SOPT2 |= SIM_SOPT2_TPMSRC(3); 
     // MCGIRCLK IS SELECTED FOR TPM CLOCK
     TPM2_BASE_PTR->SC |= TPM_SC_PS(5);
-    // TODO especificar frequencia
+    
     TPM2_BASE_PTR->SC |= TPM_SC_CMOD(1);
     // COUNTER INC. ON EVERY CLOCK
-    TPM2_BASE_PTR->MOD = 62500; // TODO especificar frequencia
+    TPM2_BASE_PTR->MOD = 62500;
     SIM_BASE_PTR->SCGC5 |= SIM_SCGC5_PORTB_MASK;
-    PORTB_BASE_PTR->PCR[2] = PORT_PCR_MUX(3);
-    // TODO especificar multiplexacio del TPM2_CH0
+    PORTB_BASE_PTR->PCR[2] = PORT_PCR_MUX(3);/* PTB2 as ALT3 (PWM) */
+    
     TPM2_BASE_PTR->CONTROLS[0].CnSC = TPM_CnSC_MSB_MASK | TPM_CnSC_ELSB_MASK; // SELECT
-    TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD / 2;                  // TODO especificar duty cycle
+    TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD / 2;
 }
 
 void initLeds() {
@@ -51,94 +56,75 @@ void initSystemClock() {
     return;
 }
 
-//https://learningmicro.wordpress.com/serial-communication-interface-using-uart/
-void initUart() {
-	SIM->SCGC5 |= SIM_SCGC5_PORTA(1);
-	 
-	PORTA_PCR1 |=  PORT_PCR_MUX(2); /* PTA1 as ALT2 (UART0) */
-	PORTA_PCR2 |=  PORT_PCR_MUX(2); /* PTA2 as ALT2 (UART0) */
-	// Select MCGFLLCLK as UART0 clock
-	SIM->SOPT2 |= SIM_SOPT2_UART0SRC(1);
-	 
-	// Enable UART0 Clock
-	SIM->SCGC4 |= SIM_SCGC4_UART0(1);
-	
-	//Baud Rate = Baud Clock / ((OSR+1) * BR)
-	//9600 = 48000000 / ((15 + 1) * BR).
-	//BR = 48000000 / (16 * 9600) = 312 (0x138).
-	
-	// Configure Baud Rate as 9600
-	UART0->BDL = 0x38;
-	UART0->BDH = 0x1;
-	
-	// Configure Serial Port as 8-N-1
-	// (8 data bits, No parity and 1 stop bit)
-	UART0->C1  = 0x00;
-	
-	// Configure Tx/Rx Interrupts
-	UART0->C2  |= UART_C2_TIE(0);  // Tx Interrupt disabled
-	UART0->C2  |= UART_C2_TCIE(0); // Tx Complete Interrupt disabled
-	UART0->C2  |= UART_C2_RIE(1);    // Rx Interrupt enabled
-	 
-	// Configure Transmitter/Receiever
-	UART0->C2  |= UART_C2_TE(1);     // Tx Enabled
-	UART0->C2  |= UART_C2_RE(1);     // Rx Enabled
-	
-	// Enable UART0 Interrupt
-	__NVIC_EnableIRQ(UART0_IRQn);
-	
-}
-
-void initSpi() {
-
-    // Init SPI
-    SIM_BASE_PTR->SCGC4 = SIM_SCGC4_SPI0_MASK; // Enable SPI0 clock
-
-    SPI0_BASE_PTR->C1 = SPI_C1_SPE_MASK;  // enable, SPI System Enable, SPE
-    SPI0_BASE_PTR->C1 = SPI_C1_MSTR_MASK; // use SPI as master, Master Slave select, MSTR
-    SPI0_BASE_PTR->C1 = SPI_C1_CPHA_MASK; // clock phase at the start, CPHA
-
-    SPI0_BASE_PTR->C2 = SPI_C2_SPMIE_MASK; // enable interrupt, SPMIE
-
-    SPI0_BASE_PTR->BR = SPI_BR_SPPR(0); // select BR prescaler divisor to 1, SPPR
-    SPI0_BASE_PTR->BR = SPI_BR_SPR(0);  // select BR divisor to 1, SPR
-
-    // INIT SYSYEM CLOCK for port C
-    SIM_SCGC5 |= SIM_SCGC5_PORTC_MASK;
-
-    // Configure port to alternative 2 (SPI mode)
-    PORTB_PCR4 |= PORT_PCR_MUX(2); // SPI0_PCS0
-    PORTB_PCR5 |= PORT_PCR_MUX(2); // SPI0_SCK
-    PORTB_PCR6 |= PORT_PCR_MUX(2); // SPI0_MOSI
-    PORTB_PCR7 |= PORT_PCR_MUX(2); // SPI0_MISO
-
+void UART0_IRQHandler(void) {
+    if ((UART0_BASE_PTR->S1 & UART_S1_RDRF_MASK)) {
+        uint8_t input2 = UART0_BASE_PTR->D & 0b00010111;
+        input = input2;
+        UART0_BASE_PTR->S1 |= UART0_S1_PF_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_FE_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_NF_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_IDLE_MASK;
+        UART0_BASE_PTR->S1 |= UART0_S1_OR_MASK;
+    }
     return;
 }
 
-uint8_t isSpiDataFull() {
-    return SPI0_BASE_PTR->S & SPI_S_SPRF_MASK; // data available in buffer
+//https://learningmicro.wordpress.com/serial-communication-interface-using-uart/
+void initUart() {
+    SIM_BASE_PTR->SCGC5 |= SIM_SCGC5_PORTA_MASK;
+
+    PORTA_PCR1 |= PORT_PCR_MUX(2); /* PTA1 as ALT2 (UART0) */
+    PORTA_PCR2 |= PORT_PCR_MUX(2); /* PTA2 as ALT2 (UART0) */
+    // Select MCGFLLCLK as UART0 clock
+    SIM_BASE_PTR->SOPT2 |= SIM_SOPT2_UART0SRC(1);
+
+    // Enable UART0 Clock
+    SIM_BASE_PTR->SCGC4 |= SIM_SCGC4_UART0_MASK;
+
+    //Baud Rate = Baud Clock / ((OSR+1) * BR)
+    //9600 = 48000000 / ((15 + 1) * BR).
+    //BR = 48000000 / (16 * 9600) = 312 (0x138).
+
+    // Configure Baud Rate as 9600
+    UART0_BASE_PTR->BDL = 0x38;
+    UART0_BASE_PTR->BDH = 0x1;
+
+    // Configure Serial Port as 8-N-1
+    // (8 data bits, No parity and 1 stop bit)
+    UART0_BASE_PTR->C1 = 0x00;
+
+    // Configure Tx/Rx Interrupts
+    //UART0_BASE_PTR->C2 |= UART0_C2_TIE(0);  // Tx Interrupt disabled
+    //UART0_BASE_PTR->C2 |= UART0_C2_TCIE(0); // Tx Complete Interrupt disabled
+    UART0_BASE_PTR->C2 |= UART0_C2_RIE_MASK;    // Rx Interrupt enabled
+
+    // Configure Transmitter/Receiever
+    //UART0_BASE_PTR->C2 |= UART0_C2_TE_MASK; // Tx Enabled
+    UART0_BASE_PTR->C2 |= UART_C2_RE_MASK;  // Rx Enabled
+
 }
 
-uint8_t readSpiBuffer() {
-    return SPI0_BASE_PTR->D; // read Spi Data register
+void setINT() {
+    NVIC_BASE_PTR->ICPR = 1 << 12; // CLEAR INT
+    NVIC_BASE_PTR->ISER = 1 << 12; // SET INT
 }
 
-void cambioPotencia(int potencia) {
-    switch (potencia) {
+void changePower(int pow) {
+    switch (pow) {
     case 0:
         TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0;
         break;
     case 1:
-        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.05;
-        break;
-    case 2:
         TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.1;
         break;
+    case 2:
+        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.4;
+        break;
     case 3:
-        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.15;
+        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.7;
         break;
     case 4:
-        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 0.20;
+        TPM2_BASE_PTR->CONTROLS[0].CnV = TPM2_BASE_PTR->MOD * 1;
         break;
     }
 }
@@ -148,8 +134,8 @@ void delay() {
     }
 }
 
-void mostrarLeds(int potencia) {
-    switch (potencia) {
+void showLeds(int pow) {
+    switch (pow) {
     case 0:
         RED_OFF;
         GREEN_OFF;
@@ -186,40 +172,73 @@ void mostrarLeds(int potencia) {
     }
 }
 
-void ventilador() {
-    //comprobar señal de encendido del mando
-    int encendido = 1;
-    int apagado = 0;
-    int pulsador_subida = 0;
-    int pulsador_bajada = 0;
-    if (encendido == 1) {
-        int potencia = 1;
-        while (apagado != 1) {
-            if (pulsador_subida == 1 && potencia < 4) {
-                potencia += 1;
-                cambioPotencia(potencia);
-                mostrarLeds(potencia);
+void fan() {
+    if (input == 1) {
+        power = 1;
+        changePower(power);
+        showLeds(power);
+        while (input != 2) {
+            if (input == 3 && power < 4) {
+            	power += 1;
+            	changePower(power);
+                showLeds(power);
+                input = 0;
             }
-            if (pulsador_bajada == 1 && potencia > 1) {
-                potencia -= 1;
-                cambioPotencia(potencia);
-                mostrarLeds(potencia);
+            if (input == 16 && power > 1) {
+                power -= 1;
+                changePower(power);
+                showLeds(power);
+                input = 0;
             }
         }
+        power = 0;
+        changePower(power);
+        showLeds(power);
     }
 }
 
 int main() {
-    initSystemClock();
-    initSpi();
+	/*
+initSystemClock();
+    initUart();
     initLeds();
-    while (1) {
-        GREEN_ON;
-        if (isSpiDataFull()) {
-            int data = readSpiBuffer();
-            if (data == 1) {
-                RED_ON;
-            }
-        }
+    setINT();
+    GREEN_ON;
+    while(1){
+    	if (input == 1){
+    		RED_ON;
+    	}
+    	if (input == 2)
+    	{
+    		RED_OFF;
+    	}
+    	if (input == 3)
+    	{
+    	    GREEN_OFF;
+    	}
+    	if (input == 16)
+    	{
+    		GREEN_ON;
+    	}
+    	
     }
+    initSystemClock();
+    initUart();
+    initLeds();
+    setINT();
+    changePower(power);
+    showLeds(power);
+    while(1){
+    	fan();
+    }
+    */
+	initSystemClock();
+	initUart();
+	//initPwm();
+	initLeds();
+	setINT();
+	//changePower(power);
+	//showLeds(power);
+	while(1){
+	}
 }
