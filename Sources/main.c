@@ -1,7 +1,6 @@
 #include "derivative.h"
 #include <stdint.h>
 
-//defines mayuscula nombres funciones y variables ingles y camel case
 #define RED_ON GPIOB_PDOR &= ~((uint32_t)(1 << 18))
 #define RED_OFF GPIOB_PDOR |= ((uint32_t)(1 << 18))
 
