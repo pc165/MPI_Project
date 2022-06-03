@@ -60,16 +60,10 @@ void UART0_IRQHandler(void) {
     if ((UART0_BASE_PTR->S1 & UART_S1_RDRF_MASK)) {
         uint8_t input2 = UART0_BASE_PTR->D & 0b00010111;
         input = input2;
-        UART0_BASE_PTR->S1 |= UART0_S1_PF_MASK;
-        UART0_BASE_PTR->S1 |= UART0_S1_FE_MASK;
-        UART0_BASE_PTR->S1 |= UART0_S1_NF_MASK;
-        UART0_BASE_PTR->S1 |= UART0_S1_IDLE_MASK;
-        UART0_BASE_PTR->S1 |= UART0_S1_OR_MASK;
     }
     return;
 }
 
-//https://learningmicro.wordpress.com/serial-communication-interface-using-uart/
 void initUart() {
     SIM_BASE_PTR->SCGC5 |= SIM_SCGC5_PORTA_MASK;
 
